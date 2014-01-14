@@ -9,6 +9,7 @@ OVPN_STATUS_NAME = 'status'
 TLS_VERIFY_NAME = 'tls_verify.py'
 AUTH_LOG_NAME = 'auth.log'
 USER_PASS_VERIFY_NAME = 'user_pass_verify.py'
+IP_REGEX = r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}'
 
 # Script will run in python 2 and 3
 TLS_VERIFY_SCRIPT = """#!/usr/bin/env python
@@ -57,13 +58,12 @@ if not org or not common_name:
     raise AttributeError('Missing organization or user id from args')
 
 try:
-    data = {
+    request = Request('http://localhost:%s/server/%s/tls_verify')
+    request.add_header('Content-Type', 'application/json')
+    response = urlopen(request, json.dumps({
         'org_id': org,
         'user_id': common_name,
-    }
-    request = Request('http://localhost:%s/tls_verify')
-    request.add_header('Content-Type', 'application/json')
-    response = urlopen(request, json.dumps(data).encode('utf-8'))
+    }).encode('utf-8'))
     response = json.loads(response.read().decode('utf-8'))
 except HTTPError as error:
     log_write('[FAILED] Verification server returned error: %%s - %%s' %% (
@@ -142,14 +142,13 @@ if not password.isdigit():
     raise TypeError('Authenticator code is invalid')
 
 try:
-    data = {
+    request = Request('http://localhost:%s/server/%s/otp_verify')
+    request.add_header('Content-Type', 'application/json')
+    response = urlopen(request, json.dumps({
         'org_id': org,
         'user_id': common_name,
         'otp_code': password,
-    }
-    request = Request('http://localhost:%s/otp_verify')
-    request.add_header('Content-Type', 'application/json')
-    response = urlopen(request, json.dumps(data).encode('utf-8'))
+    }).encode('utf-8'))
     response = json.loads(response.read().decode('utf-8'))
 except HTTPError as error:
     log_write('[FAILED] Verification server returned error: %%s - %%s' %% (
