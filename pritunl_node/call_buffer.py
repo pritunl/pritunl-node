@@ -9,9 +9,7 @@ class CallBuffer():
         self.call_waiters = {}
 
     def wait_for_calls(self, callback):
-        if self.waiter:
-            self.waiter([])
-            self.waiter = None
+        self.stop_waiter()
         calls = []
         while True:
             try:
@@ -25,6 +23,11 @@ class CallBuffer():
 
     def cancel_waiter(self):
         self.waiter = None
+
+    def stop_waiter(self):
+        if self.waiter:
+            self.waiter(None)
+            self.waiter = None
 
     def return_call(self, id, response):
         callback = self.call_waiters.pop(id, None)
