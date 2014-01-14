@@ -323,12 +323,17 @@ class Server:
     def force_stop(self, silent=False):
         if not self.status:
             return
-        logger.info('Forcing stop server. %r' % {
+        logger.debug('Forcing stop server. %r' % {
             'server_id': self.id,
         })
-        _process[self.id].send_signal(signal.SIGKILL)
-        if not _events[self.id].wait(THREAD_EVENT_TIMEOUT):
-            raise ValueError('Server thread failed to return stop event.')
+        process = _process[self.id]
+        event = _events[self.id]
+
+        process.send_signal(signal.SIGINT)
+        if not event.wait(2):
+            process.send_signal(signal.SIGKILL)
+            if not event.wait(THREAD_EVENT_TIMEOUT):
+                raise ValueError('Server thread failed to return stop event.')
         # if not silent:
         #     Event(type=SERVERS_UPDATED)
         #     LogEntry(message='Stopped server "%s".' % self.name)
@@ -340,13 +345,6 @@ class Server:
 
         if self.status:
             self.force_stop()
-            for i in xrange(20):
-                if not self.status:
-                    break
-                time.sleep(0.1)
-            if self.status:
-                self.force_stop()
-                time.sleep(0.5)
 
         utils.rmtree(self.path)
         _call_buffers.pop(self.id, None)
