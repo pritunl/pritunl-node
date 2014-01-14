@@ -76,10 +76,12 @@ class ServerComHandler(tornado.web.RequestHandler):
     @tornado.web.asynchronous
     def put(self, server_id):
         server = Server(id=server_id)
+        self.timeout = None
         self.call_buffer = server.call_buffer
 
         if not self.call_buffer:
-            raise tornado.web.HTTPError(410)
+            self.send_error(410)
+            return
 
         for call in tornado.escape.json_decode(self.request.body):
             self.call_buffer.return_call(call['id'], call['response'])
@@ -88,18 +90,25 @@ class ServerComHandler(tornado.web.RequestHandler):
             time.time() + 30, self.on_new_calls)
         self.call_buffer.wait_for_calls(self.on_new_calls)
 
-    def on_new_calls(self, calls=[]):
-        self.call_buffer.cancel_waiter()
-        tornado.ioloop.IOLoop.current().remove_timeout(self.timeout)
-        if calls is None:
-            raise tornado.web.HTTPError(410)
-        self.finish(calls)
-
     def write(self, chunk):
         if isinstance(chunk, list):
             self.set_header('Content-Type', 'application/json; charset=UTF-8')
             chunk = tornado.escape.json_encode(chunk)
         super(ServerComHandler, self).write(chunk)
+
+    def on_new_calls(self, calls=[]):
+        if self.request.connection.stream.closed():
+            return
+        if calls is None:
+            self.send_error(410)
+        else:
+            self.finish(calls)
+
+    def on_finish(self):
+        if self.call_buffer:
+            self.call_buffer.cancel_waiter()
+        if self.timeout:
+            tornado.ioloop.IOLoop.current().remove_timeout(self.timeout)
 
 application = tornado.web.Application([
     (r'/server/([a-z0-9]+)', ServerHandler),
