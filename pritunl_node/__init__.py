@@ -5,7 +5,4 @@ __author__ = 'Zachary Huff'
 __license__ = 'AGPL'
 __copyright__ = 'Copyright 2013 Zachary Huff'
 
-from call_buffer import CallBuffer
-call_buffer = CallBuffer()
-
 from app_server import run_server

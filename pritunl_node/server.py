@@ -1,5 +1,5 @@
 from constants import *
-from pritunl_node import call_buffer
+from call_buffer import CallBuffer
 import subprocess
 import os
 import signal
@@ -9,16 +9,17 @@ import logging
 import uuid
 import time
 import utils
+import re
 
 logger = logging.getLogger(APP_NAME)
 _threads = {}
 _events = {}
-_output = {}
 _process = {}
-_start_time = {}
+_call_buffers = {}
 
 class Server:
-    def __init__(self, id=None, iptable_rules=None, ovpn_conf=None):
+    def __init__(self, id=None, network=None, local_networks=None,
+             ovpn_conf=None):
         if id is None:
             self._initialized = False
             self.id = uuid.uuid4().hex
@@ -26,10 +27,13 @@ class Server:
             self._initialized = True
             self.id = id
 
+        self.network = network
+        self.local_networks = local_networks
         self.ovpn_conf = ovpn_conf
-        self.iptable_rules = iptable_rules
+
         self.path = os.path.join(DATA_DIR, self.id)
         self.ovpn_conf_path = os.path.join(self.path, OVPN_CONF_NAME)
+        self.ifc_pool_path = os.path.join(self.path, IFC_POOL_NAME)
         self.tls_verify_path = os.path.join(self.path, TLS_VERIFY_NAME)
         self.user_pass_verify_path = os.path.join(
             self.path, USER_PASS_VERIFY_NAME)
@@ -44,10 +48,8 @@ class Server:
             if self.id in _threads:
                 return _threads[self.id].is_alive()
             return False
-        elif name == 'uptime':
-            if self.status and self.id in _start_time:
-                return int(time.time()) - _start_time[self.id]
-            return None
+        elif name == 'call_buffer':
+            return _call_buffers[self.id]
         elif name not in self.__dict__:
             raise AttributeError('Server instance has no attribute %r' % name)
         return self.__dict__[name]
@@ -56,13 +58,24 @@ class Server:
         logger.info('Initialize new server. %r' % {
             'server_id': self.id,
         })
+        _call_buffers[self.id] = CallBuffer()
         if not os.path.isdir(self.path):
             os.makedirs(self.path)
+
+    def _parse_network(self, network):
+        network_split = network.split('/')
+        address = network_split[0]
+        cidr = int(network_split[1])
+        subnet = ('255.' * (cidr / 8)) + str(
+            int(('1' * (cidr % 8)).ljust(8, '0'), 2))
+        subnet += '.0' * (3 - subnet.count('.'))
+        return (address, subnet)
 
     def _generate_ovpn_conf(self):
         self._generate_tls_verify()
         server_conf = self.ovpn_conf % (
             self.tls_verify_path,
+            self.ifc_pool_path,
             self.ovpn_status_path,
         )
         with open(self.ovpn_conf_path, 'w') as ovpn_conf:
@@ -76,8 +89,9 @@ class Server:
         with open(self.tls_verify_path, 'w') as tls_verify_file:
             os.chmod(self.tls_verify_path, 0755)
             tls_verify_file.write(TLS_VERIFY_SCRIPT % (
-                SERVER_PORT,
                 self.auth_log_path,
+                SERVER_PORT,
+                self.id,
             ))
 
     def _enable_ip_forwarding(self):
@@ -90,11 +104,58 @@ class Server:
             })
             raise
 
+    def _generate_iptable_rules(self):
+        iptable_rules = []
+
+        try:
+            routes_output = utils.check_output(['route', '-n'],
+                stderr=subprocess.PIPE)
+        except subprocess.CalledProcessError:
+            logger.exception('Failed to get IP routes. %r' % {
+                'server_id': self.id,
+            })
+            raise
+
+        routes = {}
+        for line in routes_output.splitlines():
+            line_split = line.split()
+            if len(line_split) < 8 or not re.match(IP_REGEX, line_split[0]):
+                continue
+            routes[line_split[0]] = line_split[7]
+
+        if '0.0.0.0' not in routes:
+            logger.error('Failed to find default network interface. %r' % {
+                'server_id': self.id,
+            })
+            raise ValueError('Failed to find default network interface')
+        default_interface = routes['0.0.0.0']
+
+        for network_address in self.local_networks or ['0.0.0.0/0']:
+            args = []
+            network = self._parse_network(network_address)[0]
+
+            if network not in routes:
+                logger.debug('Failed to find interface for local network ' + \
+                        'route, using default route. %r' % {
+                    'server_id': self.id,
+                })
+                interface = default_interface
+            else:
+                interface = routes[network]
+
+            if network != '0.0.0.0':
+                args += ['-d', network_address]
+
+            args += ['-s', self.network, '-o', interface, '-j', 'MASQUERADE']
+            iptable_rules.append(args)
+
+        return iptable_rules
+
     def _exists_iptable_rules(self):
         logger.debug('Checking for iptable rules. %r' % {
             'server_id': self.id,
         })
-        for iptable_rule in self.iptable_rules:
+        for iptable_rule in self._generate_iptable_rules():
             try:
                 subprocess.check_call(['iptables', '-t', 'nat', '-C',
                     'POSTROUTING'] + iptable_rule,
@@ -110,7 +171,7 @@ class Server:
         logger.debug('Setting iptable rules. %r' % {
             'server_id': self.id,
         })
-        for iptable_rule in self.iptable_rules:
+        for iptable_rule in self._generate_iptable_rules():
             try:
                 subprocess.check_call(['iptables', '-t', 'nat', '-A',
                     'POSTROUTING'] + iptable_rule,
@@ -129,7 +190,7 @@ class Server:
             'server_id': self.id,
         })
 
-        for iptable_rule in self.iptable_rules:
+        for iptable_rule in self._generate_iptable_rules():
             try:
                 subprocess.check_call(['iptables', '-t', 'nat', '-D',
                     'POSTROUTING'] + iptable_rule,
@@ -204,7 +265,7 @@ class Server:
                 _process[self.id] = process
                 _events[self.id].set()
             except OSError:
-                _output[self.id] += traceback.format_exc()
+                #_output[self.id] += traceback.format_exc()
                 # self._event_delay(type=SERVER_OUTPUT_UPDATED,
                 #     resource_id=self.id)
                 logger.exception('Failed to start ovpn process. %r' % {
@@ -216,7 +277,7 @@ class Server:
                 line = process.stdout.readline()
                 if line == '' and process.poll() is not None:
                     break
-                _output[self.id] += line
+                #_output[self.id] += line
                 if line:
                     print line.strip('\n')
                 # self._event_delay(type=SERVER_OUTPUT_UPDATED,
@@ -234,10 +295,6 @@ class Server:
                 del _process[self.id]
             except KeyError:
                 pass
-            try:
-                del _start_time[self.id]
-            except KeyError:
-                pass
             self._interrupt = True
 
     def start(self, silent=False):
@@ -253,8 +310,6 @@ class Server:
         thread = threading.Thread(target=self._run)
         thread.start()
         _threads[self.id] = thread
-        _start_time[self.id] = int(time.time()) - 1
-        _output[self.id] = ''
         if not _events[self.id].wait(THREAD_EVENT_TIMEOUT):
             raise ValueError('Server thread failed to return start event.')
         try:
@@ -307,6 +362,7 @@ class Server:
                 time.sleep(0.5)
 
         utils.rmtree(self.path)
+        _call_buffers.pop(self.id, None)
         # LogEntry(message='Deleted server "%s".' % name)
         # Event(type=SERVERS_UPDATED)
 

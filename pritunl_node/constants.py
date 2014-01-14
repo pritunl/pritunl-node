@@ -6,6 +6,7 @@ THREAD_EVENT_TIMEOUT = 15
 DATA_DIR = 'var'
 OVPN_CONF_NAME = 'openvpn.conf'
 OVPN_STATUS_NAME = 'status'
+IFC_POOL_NAME = 'ifc_pool'
 TLS_VERIFY_NAME = 'tls_verify.py'
 AUTH_LOG_NAME = 'auth.log'
 USER_PASS_VERIFY_NAME = 'user_pass_verify.py'
