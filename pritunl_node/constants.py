@@ -2,6 +2,7 @@ APP_NAME = 'pritunl_node'
 
 CALL_CACHE_MAX = 100
 SERVER_PORT = 9800
+THREAD_EVENT_TIMEOUT = 15
 DATA_DIR = 'var'
 OVPN_CONF_NAME = 'openvpn.conf'
 OVPN_STATUS_NAME = 'status'
