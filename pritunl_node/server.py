@@ -246,10 +246,7 @@ class Server:
             time.sleep(0.1)
         self._clear_iptable_rules()
         _events[self.id].set()
-        try:
-            del _events[self.id]
-        except KeyError:
-            pass
+        _events.pop(self.id, None)
 
     def _run(self):
         logger.debug('Starting ovpn process. %r' % {
@@ -283,14 +280,8 @@ class Server:
                 'server_id': self.id,
             })
         finally:
-            try:
-                del _threads[self.id]
-            except KeyError:
-                pass
-            try:
-                del _process[self.id]
-            except KeyError:
-                pass
+            _threads.pop(self.id, None)
+            _process.pop(self.id, None)
             self._interrupt = True
 
     def start(self, silent=False):
