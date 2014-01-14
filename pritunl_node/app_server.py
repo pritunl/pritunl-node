@@ -7,8 +7,8 @@ import logging
 
 logger = logging.getLogger(APP_NAME)
 
-class LaunchHandler(tornado.web.RequestHandler):
-    def put(self):
+class ServerHandler(tornado.web.RequestHandler):
+    def post(self):
         data = tornado.escape.json_decode(self.request.body)
         iptable_rules = data['iptable_rules']
         ovpn_conf = data['ovpn_conf']
@@ -23,8 +23,7 @@ class LaunchHandler(tornado.web.RequestHandler):
             'id': server.id,
         })
 
-class TerminateHandler(tornado.web.RequestHandler):
-    def put(self, server_id):
+    def delete(self, server_id):
         server = Server(id=server_id)
         server.stop()
 
@@ -75,8 +74,8 @@ class ComHandler(tornado.web.RequestHandler):
         self.finish(tornado.escape.json_encode(calls))
 
 application = tornado.web.Application([
-    (r'/launch', LaunchHandler),
-    (r'/terminate/([a-z0-9]+)', TerminateHandler),
+    (r'/server', ServerHandler),
+    (r'/server/([a-z0-9]+)', ServerHandler),
     (r'/com', ComHandler),
     (r'/com/([a-z0-9]+)', ComHandler),
     (r'/tls_verify', TlsVerifyHandler),
