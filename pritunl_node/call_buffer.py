@@ -25,11 +25,11 @@ class CallBuffer():
         self.waiters.add(callback)
 
     def return_call(self, id, response):
-        callback = self.call_waiters.pop(id)
+        callback = self.call_waiters.pop(id, None)
         if callback:
             callback(response)
 
-    def create_call(self, command, args, callback):
+    def create_call(self, command, args, callback=None):
         call_id = uuid.uuid4().hex
         call = {
             'id': call_id,
@@ -37,7 +37,8 @@ class CallBuffer():
             'args': args,
         }
 
-        self.call_waiters[call_id] = callback
+        if callback:
+            self.call_waiters[call_id] = callback
         self.cache.append(call)
 
         for callback in self.waiters:
