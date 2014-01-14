@@ -1,2 +1,3 @@
 APP_NAME = 'pritunl_node'
 CALL_CACHE_MAX = 100
+SERVER_PORT = 9800
