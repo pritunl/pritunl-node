@@ -23,7 +23,7 @@ class CallBuffer():
             return
         self.waiter = callback
 
-    def cancel_wait(self):
+    def cancel_waiter(self):
         self.waiter = None
 
     def return_call(self, id, response):

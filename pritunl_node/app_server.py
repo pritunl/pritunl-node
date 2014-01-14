@@ -27,7 +27,7 @@ class ServerHandler(tornado.web.RequestHandler):
 
     def delete(self, server_id):
         server = Server(id=server_id)
-        server.stop()
+        server.remove()
 
         self.write({
             'id': server_id,
@@ -84,7 +84,7 @@ class ServerComHandler(tornado.web.RequestHandler):
         self.call_buffer.wait_for_calls(self.on_new_calls)
 
     def on_new_calls(self, calls=[]):
-        self.call_buffer.cancel_wait()
+        self.call_buffer.cancel_waiter()
         tornado.ioloop.IOLoop.current().remove_timeout(self.timeout)
         self.set_header('Content-Type', 'application/json; charset=UTF-8')
         self.finish(tornado.escape.json_encode(calls))
