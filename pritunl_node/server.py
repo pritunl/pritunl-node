@@ -265,9 +265,8 @@ class Server:
                 _process[self.id] = process
                 _events[self.id].set()
             except OSError:
-                #_output[self.id] += traceback.format_exc()
-                # self._event_delay(type=SERVER_OUTPUT_UPDATED,
-                #     resource_id=self.id)
+                self.call_buffer.create_call(
+                    'push_output', [traceback.format_exc()])
                 logger.exception('Failed to start ovpn process. %r' % {
                     'server_id': self.id,
                 })
@@ -277,11 +276,8 @@ class Server:
                 line = process.stdout.readline()
                 if line == '' and process.poll() is not None:
                     break
-                #_output[self.id] += line
                 if line:
-                    print line.strip('\n')
-                # self._event_delay(type=SERVER_OUTPUT_UPDATED,
-                #     resource_id=self.id)
+                    self.call_buffer.create_call('push_output', [line])
 
             logger.debug('Ovpn process has ended. %r' % {
                 'server_id': self.id,
