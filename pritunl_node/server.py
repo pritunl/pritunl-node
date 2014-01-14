@@ -6,7 +6,6 @@ import signal
 import threading
 import traceback
 import logging
-import uuid
 import time
 import utils
 import re
@@ -20,13 +19,7 @@ _call_buffers = {}
 class Server:
     def __init__(self, id=None, network=None, local_networks=None,
              ovpn_conf=None):
-        if id is None:
-            self._initialized = False
-            self.id = uuid.uuid4().hex
-        else:
-            self._initialized = True
-            self.id = id
-
+        self.id = id
         self.network = network
         self.local_networks = local_networks
         self.ovpn_conf = ovpn_conf
@@ -40,24 +33,26 @@ class Server:
         self.ovpn_status_path = os.path.join(self.path, OVPN_STATUS_NAME)
         self.auth_log_path = os.path.join(DATA_DIR, AUTH_LOG_NAME)
 
-        if not self._initialized:
-            self._initialize()
-
     def __getattr__(self, name):
         if name == 'status':
             if self.id in _threads:
                 return _threads[self.id].is_alive()
             return False
         elif name == 'call_buffer':
-            return _call_buffers[self.id]
+            try:
+                return _call_buffers[self.id]
+            except KeyError:
+                return
         elif name not in self.__dict__:
             raise AttributeError('Server instance has no attribute %r' % name)
         return self.__dict__[name]
 
-    def _initialize(self):
-        logger.info('Initialize new server. %r' % {
+    def initialize(self):
+        logger.info('Initialize server. %r' % {
             'server_id': self.id,
         })
+        if self.status:
+            self.remove()
         _call_buffers[self.id] = CallBuffer()
         if not os.path.isdir(self.path):
             os.makedirs(self.path)
@@ -347,7 +342,9 @@ class Server:
             self.force_stop()
 
         utils.rmtree(self.path)
-        _call_buffers.pop(self.id, None)
+        call_buffer = _call_buffers.pop(self.id, None)
+        if call_buffer:
+            call_buffer.stop_waiter()
         # LogEntry(message='Deleted server "%s".' % name)
         # Event(type=SERVERS_UPDATED)
 

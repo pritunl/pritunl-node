@@ -8,17 +8,19 @@ import time
 logger = logging.getLogger(APP_NAME)
 
 class ServerHandler(tornado.web.RequestHandler):
-    def post(self):
+    def post(self, server_id):
         data = tornado.escape.json_decode(self.request.body)
         network = data['network']
         local_networks = data['local_networks']
         ovpn_conf = data['ovpn_conf']
 
         server = Server(
+            id=server_id,
             network=network,
             local_networks=local_networks,
             ovpn_conf=ovpn_conf,
         )
+        server.initialize()
         server.start()
 
         self.write({
@@ -76,6 +78,9 @@ class ServerComHandler(tornado.web.RequestHandler):
         server = Server(id=server_id)
         self.call_buffer = server.call_buffer
 
+        if not self.call_buffer:
+            raise tornado.web.HTTPError(410)
+
         for call in tornado.escape.json_decode(self.request.body):
             self.call_buffer.return_call(call['id'], call['response'])
 
@@ -86,11 +91,16 @@ class ServerComHandler(tornado.web.RequestHandler):
     def on_new_calls(self, calls=[]):
         self.call_buffer.cancel_waiter()
         tornado.ioloop.IOLoop.current().remove_timeout(self.timeout)
+        if calls is None:
+            raise tornado.web.HTTPError(410)
+        self.finish(calls)
+
+    def finish(self, response):
         self.set_header('Content-Type', 'application/json; charset=UTF-8')
-        self.finish(tornado.escape.json_encode(calls))
+        super(ServerComHandler, self).finish(
+            tornado.escape.json_encode(response))
 
 application = tornado.web.Application([
-    (r'/server', ServerHandler),
     (r'/server/([a-z0-9]+)', ServerHandler),
     (r'/server/([a-z0-9]+)/com', ServerComHandler),
     (r'/server/([a-z0-9]+)/tls_verify', ServerTlsVerifyHandler),
