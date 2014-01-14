@@ -5,22 +5,19 @@ import uuid
 class CallBuffer():
     def __init__(self):
         self.waiter = None
-        self.cache = collections.deque(maxlen=CALL_CACHE_MAX)
+        self.queue = collections.deque(maxlen=CALL_QUEUE_MAX)
         self.call_waiters = {}
 
-    def wait_for_calls(self, callback, cursor=None):
+    def wait_for_calls(self, callback):
         if self.waiter:
             self.waiter([])
             self.waiter = None
         calls = []
-        cursor_found = False if cursor else True
-        for call in self.cache:
-            if call['id'] == cursor:
-                cursor_found = True
-                continue
-            if not cursor_found:
-                continue
-            calls.append(call)
+        while True:
+            try:
+                calls.append(self.queue.popleft())
+            except IndexError:
+                break
         if calls:
             callback(calls)
             return
@@ -41,8 +38,9 @@ class CallBuffer():
 
         if callback:
             self.call_waiters[call_id] = callback
-        self.cache.append(call)
 
         if self.waiter:
             self.waiter([call])
             self.waiter = None
+        else:
+            self.queue.append(call)

@@ -71,13 +71,13 @@ class ServerOtpVerifyHandler(tornado.web.RequestHandler):
 
 class ServerComHandler(tornado.web.RequestHandler):
     @tornado.web.asynchronous
-    def put(self, server_id, cursor=None):
+    def put(self, server_id):
         server = Server(id=server_id)
         call_buffer = server.call_buffer
 
         for call in tornado.escape.json_decode(self.request.body):
             call_buffer.return_call(call['id'], call['response'])
-        call_buffer.wait_for_calls(self.on_new_calls, cursor)
+        call_buffer.wait_for_calls(self.on_new_calls)
 
     def on_new_calls(self, calls):
         self.set_header('Content-Type', 'application/json; charset=UTF-8')
@@ -87,7 +87,6 @@ application = tornado.web.Application([
     (r'/server', ServerHandler),
     (r'/server/([a-z0-9]+)', ServerHandler),
     (r'/server/([a-z0-9]+)/com', ServerComHandler),
-    (r'/server/([a-z0-9]+)/com/([a-z0-9]+)', ServerComHandler),
     (r'/server/([a-z0-9]+)/tls_verify', ServerTlsVerifyHandler),
     (r'/server/([a-z0-9]+)/otp_verify', ServerOtpVerifyHandler),
 ])
