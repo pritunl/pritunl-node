@@ -6,6 +6,37 @@ import logging
 
 logger = logging.getLogger(APP_NAME)
 
+class TlsVerifyHandler(tornado.web.RequestHandler):
+    @tornado.web.asynchronous
+    def post(self):
+        data = tornado.escape.json_decode(self.request.body)
+        org_id = data['org_id']
+        user_id = data['user_id']
+
+        call_buffer.create_call('tls_verify', [org_id, user_id],
+            self.on_response)
+
+    def on_response(self, authenticated):
+        self.finish({
+            'authenticated': authenticated,
+        })
+
+class OtpVerifyHandler(tornado.web.RequestHandler):
+    @tornado.web.asynchronous
+    def post(self):
+        data = tornado.escape.json_decode(self.request.body)
+        org_id = data['org_id']
+        user_id = data['user_id']
+        otp_code = data['otp_code']
+
+        call_buffer.create_call('otp_verify', [org_id, user_id, otp_code],
+            self.on_response)
+
+    def on_response(self, authenticated):
+        self.finish({
+            'authenticated': authenticated,
+        })
+
 class ComHandler(tornado.web.RequestHandler):
     @tornado.web.asynchronous
     def put(self, cursor=None):
@@ -20,6 +51,8 @@ class ComHandler(tornado.web.RequestHandler):
 application = tornado.web.Application([
     (r'/com', ComHandler),
     (r'/com/([a-z0-9]+)', ComHandler),
+    (r'/tls_verify', TlsVerifyHandler),
+    (r'/otp_verify', OtpVerifyHandler),
 ])
 
 def run_server():
