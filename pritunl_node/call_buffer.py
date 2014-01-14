@@ -9,19 +9,18 @@ class CallBuffer():
         self.call_waiters = {}
 
     def wait_for_calls(self, callback, cursor=None):
-        if cursor:
-            calls = []
-            cursor_found = False
-            for call in self.cache:
-                if call['id'] == cursor:
-                    cursor_found = True
-                    continue
-                if not cursor_found:
-                    continue
-                calls.append(call)
-            if calls:
-                callback(calls)
-                return
+        calls = []
+        cursor_found = False if cursor else True
+        for call in self.cache:
+            if call['id'] == cursor:
+                cursor_found = True
+                continue
+            if not cursor_found:
+                continue
+            calls.append(call)
+        if calls:
+            callback(calls)
+            return
         self.waiters.add(callback)
 
     def return_call(self, id, response):
