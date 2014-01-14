@@ -1,10 +1,36 @@
 from constants import *
+from server import Server
 from pritunl_node import call_buffer
 import tornado.ioloop
 import tornado.web
 import logging
 
 logger = logging.getLogger(APP_NAME)
+
+class LaunchHandler(tornado.web.RequestHandler):
+    def put(self):
+        data = tornado.escape.json_decode(self.request.body)
+        iptable_rules = data['iptable_rules']
+        ovpn_conf = data['ovpn_conf']
+
+        server = Server(
+            iptable_rules=iptable_rules,
+            ovpn_conf=ovpn_conf,
+        )
+        server.start()
+
+        self.write({
+            'id': server.id,
+        })
+
+class TerminateHandler(tornado.web.RequestHandler):
+    def put(self, server_id):
+        server = Server(id=server_id)
+        server.stop()
+
+        self.write({
+            'id': server_id,
+        })
 
 class TlsVerifyHandler(tornado.web.RequestHandler):
     @tornado.web.asynchronous
@@ -49,6 +75,8 @@ class ComHandler(tornado.web.RequestHandler):
         self.finish(tornado.escape.json_encode(calls))
 
 application = tornado.web.Application([
+    (r'/launch', LaunchHandler),
+    (r'/terminate/([a-z0-9]+)', TerminateHandler),
     (r'/com', ComHandler),
     (r'/com/([a-z0-9]+)', ComHandler),
     (r'/tls_verify', TlsVerifyHandler),
@@ -56,5 +84,9 @@ application = tornado.web.Application([
 ])
 
 def run_server():
-    application.listen(SERVER_PORT)
-    tornado.ioloop.IOLoop.instance().start()
+    try:
+        application.listen(SERVER_PORT)
+        tornado.ioloop.IOLoop.instance().start()
+    finally:
+        for server in Server.get_servers():
+            server.remove()

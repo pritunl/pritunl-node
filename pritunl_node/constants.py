@@ -1,6 +1,13 @@
 APP_NAME = 'pritunl_node'
+
 CALL_CACHE_MAX = 100
 SERVER_PORT = 9800
+DATA_DIR = 'var'
+OVPN_CONF_NAME = 'openvpn.conf'
+OVPN_STATUS_NAME = 'status'
+TLS_VERIFY_NAME = 'tls_verify.py'
+AUTH_LOG_NAME = 'auth.log'
+USER_PASS_VERIFY_NAME = 'user_pass_verify.py'
 
 # Script will run in python 2 and 3
 TLS_VERIFY_SCRIPT = """#!/usr/bin/env python
