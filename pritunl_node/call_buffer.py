@@ -23,6 +23,9 @@ class CallBuffer():
             return
         self.waiter = callback
 
+    def cancel_wait(self):
+        self.waiter = None
+
     def return_call(self, id, response):
         callback = self.call_waiters.pop(id, None)
         if callback:
