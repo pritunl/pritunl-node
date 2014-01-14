@@ -95,10 +95,11 @@ class ServerComHandler(tornado.web.RequestHandler):
             raise tornado.web.HTTPError(410)
         self.finish(calls)
 
-    def finish(self, response):
-        self.set_header('Content-Type', 'application/json; charset=UTF-8')
-        super(ServerComHandler, self).finish(
-            tornado.escape.json_encode(response))
+    def write(self, chunk):
+        if isinstance(chunk, list):
+            self.set_header('Content-Type', 'application/json; charset=UTF-8')
+            chunk = tornado.escape.json_encode(chunk)
+        super(ServerComHandler, self).write(chunk)
 
 application = tornado.web.Application([
     (r'/server/([a-z0-9]+)', ServerHandler),
