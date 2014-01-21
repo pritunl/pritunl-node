@@ -216,9 +216,9 @@ class Server:
                     })
                 raise
 
-    def get_clients(self):
+    def update_clients(self):
         if not self.status:
-            return []
+            return {}
         clients = {}
 
         if os.path.isfile(self.ovpn_status_path):
@@ -241,6 +241,8 @@ class Server:
                         'connected_since': connected_since,
                     }
 
+        self.call_buffer.create_call('update_clients', [clients])
+        self.clients = clients
         return clients
 
     def _status_thread(self):
@@ -250,7 +252,7 @@ class Server:
             # Check interrupt every 0.1s check client count every 1s
             if i == 9:
                 i = 0
-                client_count = len(self.get_clients())
+                client_count = len(self.update_clients())
                 if client_count != cur_client_count:
                     cur_client_count = client_count
                     # Event(type=USERS_UPDATED)
