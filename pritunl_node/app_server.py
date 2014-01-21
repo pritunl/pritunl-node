@@ -41,17 +41,29 @@ class ServerTlsVerifyHandler(tornado.web.RequestHandler):
         data = tornado.escape.json_decode(self.request.body)
         org_id = data['org_id']
         user_id = data['user_id']
-
         server = Server(id=server_id)
-        call_buffer = server.call_buffer
+        self.timeout = None
+        self.call_id = None
+        self.call_buffer = server.call_buffer
 
-        call_buffer.create_call('tls_verify', [org_id, user_id],
-            self.on_response)
+        self.timeout = tornado.ioloop.IOLoop.current().add_timeout(
+            time.time() + CALL_RESPONSE_TIMEOUT, self.on_response)
 
-    def on_response(self, authenticated):
+        self.call_id = self.call_buffer.create_call('tls_verify',
+            [org_id, user_id], self.on_response)
+
+    def on_response(self, authenticated=False):
+        if self.request.connection.stream.closed():
+            return
         self.finish({
             'authenticated': authenticated,
         })
+
+    def on_finish(self):
+        if self.call_id:
+            self.call_buffer.cancel_call(self.call_id)
+        if self.timeout:
+            tornado.ioloop.IOLoop.current().remove_timeout(self.timeout)
 
 class ServerOtpVerifyHandler(tornado.web.RequestHandler):
     @tornado.web.asynchronous
@@ -60,17 +72,29 @@ class ServerOtpVerifyHandler(tornado.web.RequestHandler):
         org_id = data['org_id']
         user_id = data['user_id']
         otp_code = data['otp_code']
-
         server = Server(id=server_id)
-        call_buffer = server.call_buffer
+        self.timeout = None
+        self.call_id = None
+        self.call_buffer = server.call_buffer
 
-        call_buffer.create_call('otp_verify', [org_id, user_id, otp_code],
-            self.on_response)
+        self.timeout = tornado.ioloop.IOLoop.current().add_timeout(
+            time.time() + CALL_RESPONSE_TIMEOUT, self.on_response)
 
-    def on_response(self, authenticated):
+        self.call_id = self.call_buffer.create_call('otp_verify',
+            [org_id, user_id, otp_code], self.on_response)
+
+    def on_response(self, authenticated=False):
+        if self.request.connection.stream.closed():
+            return
         self.finish({
             'authenticated': authenticated,
         })
+
+    def on_finish(self):
+        if self.call_id:
+            self.call_buffer.cancel_call(self.call_id)
+        if self.timeout:
+            tornado.ioloop.IOLoop.current().remove_timeout(self.timeout)
 
 class ServerComHandler(tornado.web.RequestHandler):
     @tornado.web.asynchronous
