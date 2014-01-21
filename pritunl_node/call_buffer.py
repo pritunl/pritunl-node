@@ -29,8 +29,8 @@ class CallBuffer():
             self.waiter(None)
             self.waiter = None
 
-    def return_call(self, id, response):
-        callback = self.call_waiters.pop(id, None)
+    def return_call(self, call_id, response):
+        callback = self.call_waiters.pop(call_id, None)
         if callback:
             callback(response)
 
@@ -50,3 +50,8 @@ class CallBuffer():
             self.waiter = None
         else:
             self.queue.append(call)
+
+        return call_id
+
+    def cancel_call(self, call_id):
+        self.call_waiters.pop(call_id, None)
