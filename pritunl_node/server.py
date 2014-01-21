@@ -67,8 +67,15 @@ class Server:
         return (address, subnet)
 
     def _generate_ovpn_conf(self):
+        ovpn_conf = self.ovpn_conf
         self._generate_tls_verify()
-        server_conf = self.ovpn_conf % (
+
+        if '<%= user_pass_verify_path %>' in ovpn_conf:
+            self._generate_user_pass_verify()
+            ovpn_conf = ovpn_conf.replace('<%= user_pass_verify_path %>',
+                self.user_pass_verify_path)
+
+        server_conf = ovpn_conf % (
             self.tls_verify_path,
             self.ifc_pool_path,
             self.ovpn_status_path,
@@ -84,6 +91,18 @@ class Server:
         with open(self.tls_verify_path, 'w') as tls_verify_file:
             os.chmod(self.tls_verify_path, 0755)
             tls_verify_file.write(TLS_VERIFY_SCRIPT % (
+                self.auth_log_path,
+                SERVER_PORT,
+                self.id,
+            ))
+
+    def _generate_user_pass_verify(self):
+        logger.debug('Generating user pass verify script. %r' % {
+            'server_id': self.id,
+        })
+        with open(self.user_pass_verify_path, 'w') as user_pass_verify_file:
+            os.chmod(self.user_pass_verify_path, 0755)
+            user_pass_verify_file.write(USER_PASS_VERIFY_SCRIPT % (
                 self.auth_log_path,
                 SERVER_PORT,
                 self.id,
