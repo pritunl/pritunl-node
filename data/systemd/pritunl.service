@@ -1,0 +1,10 @@
+[Unit]
+Description=Pritunl-Node Daemon
+
+[Service]
+Type=forking
+PIDFile=/var/run/pritunl-node.pid
+ExecStart=%PREFIX%/bin/pritunl-node --daemon --pidfile /var/run/pritunl-node.pid
+
+[Install]
+WantedBy=multi-user.target
