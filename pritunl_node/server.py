@@ -22,14 +22,17 @@ class Server:
         self.local_networks = local_networks
         self.ovpn_conf = ovpn_conf
 
-        self.path = os.path.join(DATA_DIR, self.id)
+        self.path = os.path.join(DEFAULT_DATA_PATH, self.id)
         self.ovpn_conf_path = os.path.join(self.path, OVPN_CONF_NAME)
         self.ifc_pool_path = os.path.join(self.path, IFC_POOL_NAME)
         self.tls_verify_path = os.path.join(self.path, TLS_VERIFY_NAME)
         self.user_pass_verify_path = os.path.join(
             self.path, USER_PASS_VERIFY_NAME)
+        self.client_connect_path = os.path.join(self.path, CLIENT_CONNECT_NAME)
+        self.client_disconnect_path = os.path.join(self.path,
+            CLIENT_DISCONNECT_NAME)
         self.ovpn_status_path = os.path.join(self.path, OVPN_STATUS_NAME)
-        self.auth_log_path = os.path.join(DATA_DIR, AUTH_LOG_NAME)
+        self.auth_log_path = os.path.join(DEFAULT_DATA_PATH, AUTH_LOG_NAME)
 
     def __setattr__(self, name, value):
         if name == 'status':
@@ -86,47 +89,44 @@ class Server:
         if call_buffer:
             call_buffer.stop_waiter()
 
+    def _generate_scripts(self):
+        logger.debug('Generating openvpn scripts. %r' % {
+            'server_id': self.id,
+        })
+        for script, script_path in [
+                    (TLS_VERIFY_SCRIPT, self.tls_verify_path),
+                    (USER_PASS_VERIFY_SCRIPT, self.user_pass_verify_path),
+                    (CLIENT_CONNECT_SCRIPT, self.client_connect_path),
+                    (CLIENT_DISCONNECT_SCRIPT, self.client_disconnect_path),
+                ]:
+            with open(script_path, 'w') as script_file:
+                os.chmod(script_path, 0755)
+                # TODO
+                script_file.write(script % (
+                    self.auth_log_path,
+                    'http',
+                    SERVER_PORT,
+                    self.id,
+                ))
+
     def _generate_ovpn_conf(self):
         ovpn_conf = self.ovpn_conf
-        self._generate_tls_verify()
+        self._generate_scripts()
 
         if '<%= user_pass_verify_path %>' in ovpn_conf:
-            self._generate_user_pass_verify()
             ovpn_conf = ovpn_conf.replace('<%= user_pass_verify_path %>',
                 self.user_pass_verify_path)
 
         server_conf = ovpn_conf % (
             self.tls_verify_path,
+            self.client_connect_path,
+            self.client_disconnect_path,
             self.ifc_pool_path,
             self.ovpn_status_path,
         )
         with open(self.ovpn_conf_path, 'w') as ovpn_conf:
             os.chmod(self.ovpn_conf_path, 0600)
             ovpn_conf.write(server_conf)
-
-    def _generate_tls_verify(self):
-        logger.debug('Generating tls verify script. %r' % {
-            'server_id': self.id,
-        })
-        with open(self.tls_verify_path, 'w') as tls_verify_file:
-            os.chmod(self.tls_verify_path, 0755)
-            tls_verify_file.write(TLS_VERIFY_SCRIPT % (
-                self.auth_log_path,
-                SERVER_PORT,
-                self.id,
-            ))
-
-    def _generate_user_pass_verify(self):
-        logger.debug('Generating user pass verify script. %r' % {
-            'server_id': self.id,
-        })
-        with open(self.user_pass_verify_path, 'w') as user_pass_verify_file:
-            os.chmod(self.user_pass_verify_path, 0755)
-            user_pass_verify_file.write(USER_PASS_VERIFY_SCRIPT % (
-                self.auth_log_path,
-                SERVER_PORT,
-                self.id,
-            ))
 
     def _enable_ip_forwarding(self):
         try:
@@ -407,13 +407,13 @@ class Server:
 
     @staticmethod
     def get_server(id):
-        if os.path.isdir(os.path.join(DATA_DIR, id)):
+        if os.path.isdir(os.path.join(DEFAULT_DATA_PATH, id)):
             return Server(id=id)
 
     @staticmethod
     def get_servers():
         logger.debug('Getting servers.')
-        path = os.path.join(DATA_DIR)
+        path = os.path.join(DEFAULT_DATA_PATH)
         servers = []
         if os.path.isdir(path):
             for server_id in os.listdir(path):
