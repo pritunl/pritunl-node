@@ -1,4 +1,5 @@
 from constants import *
+from config import Config
 from server import Server
 import tornado.ioloop
 import tornado.web
@@ -6,6 +7,25 @@ import logging
 import time
 
 logger = logging.getLogger(APP_NAME)
+
+class AppServer(Config):
+    bool_options = {'ssl'}
+    int_options = {'port'}
+    path_options = {'data_path'}
+    str_options = {'bind_addr', 'api_key'}
+    default_options = {
+        'get_public_ip': True,
+        'inline_certs': True,
+        'ssl': False,
+        'data_path': DEFAULT_DATA_PATH,
+    }
+
+    def __getattr__(self, name):
+        if name == 'web_protocol':
+            if self.ssl:
+                return 'http'
+            return 'https'
+        return Config.__getattr__(self, name)
 
 class ServerHandler(tornado.web.RequestHandler):
     def post(self, server_id):
@@ -96,6 +116,26 @@ class ServerOtpVerifyHandler(tornado.web.RequestHandler):
         if self.timeout:
             tornado.ioloop.IOLoop.current().remove_timeout(self.timeout)
 
+class ServerClientConnectHandler(tornado.web.RequestHandler):
+    def post(self, server_id):
+        data = tornado.escape.json_decode(self.request.body)
+        org_id = data['org_id']
+        user_id = data['user_id']
+        server = Server(id=server_id)
+
+        self.finish({
+            'client_conf': None,
+        })
+
+class ServerClientDisconnectHandler(tornado.web.RequestHandler):
+    def post(self, server_id):
+        data = tornado.escape.json_decode(self.request.body)
+        org_id = data['org_id']
+        user_id = data['user_id']
+        server = Server(id=server_id)
+
+        self.finish({})
+
 class ServerComHandler(tornado.web.RequestHandler):
     @tornado.web.asynchronous
     def put(self, server_id):
@@ -111,7 +151,7 @@ class ServerComHandler(tornado.web.RequestHandler):
             self.call_buffer.return_call(call['id'], call['response'])
 
         self.timeout = tornado.ioloop.IOLoop.current().add_timeout(
-            time.time() + 30, self.on_new_calls)
+            time.time() + 5, self.on_new_calls)
         self.call_buffer.wait_for_calls(self.on_new_calls)
 
     def write(self, chunk):
@@ -139,6 +179,8 @@ application = tornado.web.Application([
     (r'/server/([a-z0-9]+)/com', ServerComHandler),
     (r'/server/([a-z0-9]+)/tls_verify', ServerTlsVerifyHandler),
     (r'/server/([a-z0-9]+)/otp_verify', ServerOtpVerifyHandler),
+    (r'/server/([a-z0-9]+)/client_connect', ServerClientConnectHandler),
+    (r'/server/([a-z0-9]+)/client_disconnect', ServerClientDisconnectHandler),
 ])
 
 def run_server():
