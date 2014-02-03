@@ -1,0 +1,39 @@
+# Maintainer: Zachary Huff <zach.huff.386@gmail.com>
+
+pkgname=pritunl-node
+pkgver=0.10.1
+pkgrel=1
+pkgdesc="Pritunl openvpn server node"
+arch=("any")
+license=("AGPL3")
+url="https://github.com/pritunl/${pkgname}"
+depends=(
+    "python"
+    "python2"
+    "python2-tornado"
+    "net-tools"
+    "iproute2"
+    "openvpn"
+)
+makedepends=(
+    "python2-distribute"
+)
+provides=("${pkgname}")
+conflicts=("${pkgname}")
+source=("${url}/archive/${pkgver}.tar.gz")
+sha256sums=("CHANGE_ME")
+options=("emptydirs")
+backup=(
+    "etc/${pkgname}.conf"
+    "var/log/${pkgname}.log"
+)
+
+build() {
+    cd "${srcdir}/${pkgname}-${pkgver}"
+    python2 setup.py build
+}
+
+package() {
+    cd "${srcdir}/${pkgname}-${pkgver}"
+    python2 setup.py install --root="${pkgdir}" --prefix=/usr --no-upstart
+}
