@@ -5,8 +5,18 @@ import tornado.ioloop
 import tornado.web
 import logging
 import time
+import functools
 
 logger = logging.getLogger(APP_NAME)
+
+def auth(method):
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        # TODO
+        if self.request.headers.get('API-Key') != None:
+            raise tornado.web.HTTPError(401)
+        return method(self, *args, **kwargs)
+    return wrapper
 
 class AppServer(Config):
     bool_options = {'ssl'}
