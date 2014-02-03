@@ -22,4 +22,4 @@ print '#                      |__/  |__/\______/ \_______/\_______/ #'
 print '#                                                            #'
 print '##############################################################'
 
-pritunl_node.run_server()
+pritunl_node.app_server.run_server()

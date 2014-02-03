@@ -5,4 +5,5 @@ __author__ = 'Zachary Huff'
 __license__ = 'AGPL'
 __copyright__ = 'Copyright 2013 Zachary Huff'
 
-from app_server import run_server
+from app_server import AppServer
+app_server = AppServer()
