@@ -1,5 +1,8 @@
 APP_NAME = 'pritunl_node'
 
+SAVED = 'saved'
+UNSAVED = 'unsaved'
+
 CALL_QUEUE_MAX = 256
 SERVER_PORT = 9800
 SUB_RESPONSE_TIMEOUT = 15
