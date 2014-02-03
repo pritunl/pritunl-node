@@ -6,7 +6,7 @@ pritunl-node: pritunl server node
 
 `Pritunl-Node <https://github.com/pritunl/pritunl-node>`_ is a node server
 that connects to a pritunl server to allow running distributed openvpn servers
-controlled by a single pritunl server. Still in development.
+controlled by one pritunl server. Still in development.
 
 Development Setup
 -----------------
