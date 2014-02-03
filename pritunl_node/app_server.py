@@ -33,12 +33,16 @@ class ServerHandler(tornado.web.RequestHandler):
         network = data['network']
         local_networks = data['local_networks']
         ovpn_conf = data['ovpn_conf']
+        server_ver = 0
+        if 'server_ver' in data:
+            server_ver = data['server_ver']
 
         server = Server(
             id=server_id,
             network=network,
             local_networks=local_networks,
             ovpn_conf=ovpn_conf,
+            server_ver=server_ver,
         )
         server.initialize()
         server.start()

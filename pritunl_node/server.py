@@ -16,11 +16,12 @@ _call_buffers = {}
 
 class Server:
     def __init__(self, id=None, network=None, local_networks=None,
-             ovpn_conf=None):
+             ovpn_conf=None, server_ver=None):
         self.id = id
         self.network = network
         self.local_networks = local_networks
         self.ovpn_conf = ovpn_conf
+        self.server_ver = server_ver
 
         self.path = os.path.join(DEFAULT_DATA_PATH, self.id)
         self.ovpn_conf_path = os.path.join(self.path, OVPN_CONF_NAME)
@@ -117,13 +118,21 @@ class Server:
             ovpn_conf = ovpn_conf.replace('<%= user_pass_verify_path %>',
                 self.user_pass_verify_path)
 
-        server_conf = ovpn_conf % (
-            self.tls_verify_path,
-            self.client_connect_path,
-            self.client_disconnect_path,
-            self.ifc_pool_path,
-            self.ovpn_status_path,
-        )
+        if self.server_ver == 0:
+            server_conf = ovpn_conf % (
+                self.tls_verify_path,
+                self.ifc_pool_path,
+                self.ovpn_status_path,
+            )
+        else:
+            server_conf = ovpn_conf % (
+                self.tls_verify_path,
+                self.client_connect_path,
+                self.client_disconnect_path,
+                self.ifc_pool_path,
+                self.ovpn_status_path,
+            )
+
         with open(self.ovpn_conf_path, 'w') as ovpn_conf:
             os.chmod(self.ovpn_conf_path, 0600)
             ovpn_conf.write(server_conf)
