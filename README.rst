@@ -1,5 +1,5 @@
-pritunl-node: pritunl openvpn server node
-=========================================
+pritunl-node: pritunl server node
+=================================
 
 .. image:: http://gitshields.com/v2/text/license/AGPLv3/blue.png
     :target: https://www.gnu.org/licenses/agpl-3.0.html
