@@ -1,5 +1,6 @@
 from pritunl_node.constants import *
 from pritunl_node.server import Server
+from pritunl_node.auth_handler import AuthHandler
 from pritunl_node import app_server
 import tornado.ioloop
 import tornado.web
@@ -8,7 +9,7 @@ import time
 
 logger = logging.getLogger(APP_NAME)
 
-class ServerHandler(tornado.web.RequestHandler):
+class ServerHandler(AuthHandler):
     def post(self, server_id):
         data = tornado.escape.json_decode(self.request.body)
         network = data['network']
@@ -41,13 +42,14 @@ class ServerHandler(tornado.web.RequestHandler):
         })
 app_server.app.add_handlers('.*', [(r'/server/([a-z0-9]+)', ServerHandler)])
 
-class ServerTestHandler(tornado.web.RequestHandler):
+class ServerTestHandler(AuthHandler):
+    @tornado.web.asynchronous
     def get(self, server_id):
-        self.write('test')
+        self.finish('test')
 app_server.app.add_handlers('.*', [(r'/server/([a-z0-9]+)/test',
     ServerTestHandler)])
 
-class ServerTlsVerifyHandler(tornado.web.RequestHandler):
+class ServerTlsVerifyHandler(AuthHandler):
     @tornado.web.asynchronous
     def post(self, server_id):
         data = tornado.escape.json_decode(self.request.body)
@@ -79,7 +81,7 @@ class ServerTlsVerifyHandler(tornado.web.RequestHandler):
 app_server.app.add_handlers('.*', [(r'/server/([a-z0-9]+)/tls_verify',
     ServerTlsVerifyHandler)])
 
-class ServerOtpVerifyHandler(tornado.web.RequestHandler):
+class ServerOtpVerifyHandler(AuthHandler):
     @tornado.web.asynchronous
     def post(self, server_id):
         data = tornado.escape.json_decode(self.request.body)
@@ -112,7 +114,7 @@ class ServerOtpVerifyHandler(tornado.web.RequestHandler):
 app_server.app.add_handlers('.*', [(r'/server/([a-z0-9]+)/otp_verify',
     ServerOtpVerifyHandler)])
 
-class ServerClientConnectHandler(tornado.web.RequestHandler):
+class ServerClientConnectHandler(AuthHandler):
     def post(self, server_id):
         data = tornado.escape.json_decode(self.request.body)
         org_id = data['org_id']
@@ -125,7 +127,7 @@ class ServerClientConnectHandler(tornado.web.RequestHandler):
 app_server.app.add_handlers('.*', [(r'/server/([a-z0-9]+)/client_connect',
     ServerClientConnectHandler)])
 
-class ServerClientDisconnectHandler(tornado.web.RequestHandler):
+class ServerClientDisconnectHandler(AuthHandler):
     def post(self, server_id):
         data = tornado.escape.json_decode(self.request.body)
         org_id = data['org_id']
@@ -136,7 +138,7 @@ class ServerClientDisconnectHandler(tornado.web.RequestHandler):
 app_server.app.add_handlers('.*', [(r'/server/([a-z0-9]+)/client_disconnect',
     ServerClientDisconnectHandler)])
 
-class ServerComHandler(tornado.web.RequestHandler):
+class ServerComHandler(AuthHandler):
     @tornado.web.asynchronous
     def put(self, server_id):
         server = Server(id=server_id)

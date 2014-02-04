@@ -37,14 +37,6 @@ class AppServer(Config):
             return 'https'
         return Config.__getattr__(self, name)
 
-    def auth(method):
-        @functools.wraps(method)
-        def wrapper(self, *args, **kwargs):
-            if self.request.headers.get('API-Key') != self.api_key:
-                raise tornado.web.HTTPError(401)
-            return method(self, *args, **kwargs)
-        return wrapper
-
     def _setup_app(self):
         self.app = tornado.web.Application()
 
