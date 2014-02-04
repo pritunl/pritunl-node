@@ -22,4 +22,5 @@ print '#                   |__/  |__/ \______/  \_______/ \_______/ #'
 print '#                                                            #'
 print '##############################################################'
 
+pritunl_node.app_server.conf_path = './tools/development_pritunl_node.conf'
 pritunl_node.app_server.run_server()
