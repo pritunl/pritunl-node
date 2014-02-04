@@ -1,6 +1,5 @@
 from constants import *
 from config import Config
-from server import Server
 import tornado.ioloop
 import tornado.web
 import logging
@@ -108,7 +107,7 @@ class AppServer(Config):
         if self.ssl:
             self._setup_server_cert()
         try:
-            self.app.listen(SERVER_PORT, ssl_options={
+            self.app.listen(self.port, ssl_options={
                 'certfile': self._server_cert_path,
                 'keyfile': self._server_key_path,
             })
