@@ -41,6 +41,12 @@ class ServerHandler(tornado.web.RequestHandler):
         })
 app_server.app.add_handlers('.*', [(r'/server/([a-z0-9]+)', ServerHandler)])
 
+class ServerTestHandler(tornado.web.RequestHandler):
+    def get(self, server_id):
+        self.write('test')
+app_server.app.add_handlers('.*', [(r'/server/([a-z0-9]+)/test',
+    ServerTestHandler)])
+
 class ServerTlsVerifyHandler(tornado.web.RequestHandler):
     @tornado.web.asynchronous
     def post(self, server_id):
