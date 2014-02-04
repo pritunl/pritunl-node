@@ -1,6 +1,7 @@
 from constants import *
 from call_buffer import CallBuffer
 from cache import cache_db
+from pritunl_node import app_server
 import subprocess
 import os
 import signal
@@ -23,7 +24,7 @@ class Server:
         self.ovpn_conf = ovpn_conf
         self.server_ver = server_ver
 
-        self.path = os.path.join(DEFAULT_DATA_PATH, self.id)
+        self.path = os.path.join(app_server.data_path, self.id)
         self.ovpn_conf_path = os.path.join(self.path, OVPN_CONF_NAME)
         self.ifc_pool_path = os.path.join(self.path, IFC_POOL_NAME)
         self.tls_verify_path = os.path.join(self.path, TLS_VERIFY_NAME)
@@ -33,7 +34,7 @@ class Server:
         self.client_disconnect_path = os.path.join(self.path,
             CLIENT_DISCONNECT_NAME)
         self.ovpn_status_path = os.path.join(self.path, OVPN_STATUS_NAME)
-        self.auth_log_path = os.path.join(DEFAULT_DATA_PATH, AUTH_LOG_NAME)
+        self.auth_log_path = os.path.join(app_server.data_path, AUTH_LOG_NAME)
 
     def __setattr__(self, name, value):
         if name == 'status':
@@ -102,11 +103,10 @@ class Server:
                 ]:
             with open(script_path, 'w') as script_file:
                 os.chmod(script_path, 0755)
-                # TODO
                 script_file.write(script % (
                     self.auth_log_path,
-                    'http',
-                    SERVER_PORT,
+                    app_server.web_protocol,
+                    app_server.port,
                     self.id,
                 ))
 
@@ -416,13 +416,13 @@ class Server:
 
     @staticmethod
     def get_server(id):
-        if os.path.isdir(os.path.join(DEFAULT_DATA_PATH, id)):
+        if os.path.isdir(os.path.join(app_server.data_path, id)):
             return Server(id=id)
 
     @staticmethod
     def get_servers():
         logger.debug('Getting servers.')
-        path = os.path.join(DEFAULT_DATA_PATH)
+        path = os.path.join(app_server.data_path)
         servers = []
         if os.path.isdir(path):
             for server_id in os.listdir(path):
