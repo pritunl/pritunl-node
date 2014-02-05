@@ -31,7 +31,7 @@ class AppServer(Config):
 
     def __getattr__(self, name):
         if name == 'web_protocol':
-            if self.ssl:
+            if not self.ssl:
                 return 'http'
             return 'https'
         return Config.__getattr__(self, name)
@@ -113,6 +113,7 @@ class AppServer(Config):
             })
             tornado.ioloop.IOLoop.instance().start()
         finally:
+            from server import Server
             for server in Server.get_servers():
                 server.remove()
 
