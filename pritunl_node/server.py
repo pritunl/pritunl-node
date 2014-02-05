@@ -18,6 +18,8 @@ _call_buffers = {}
 class Server:
     def __init__(self, id=None, network=None, local_networks=None,
              ovpn_conf=None, server_ver=None):
+        self._cur_client_count = 0
+
         self.id = id
         self.network = network
         self.local_networks = local_networks
@@ -51,10 +53,7 @@ class Server:
                 return True
             return False
         elif name == 'call_buffer':
-            try:
-                return _call_buffers[self.id]
-            except KeyError:
-                return
+            return _call_buffers.get(self.id)
         elif name not in self.__dict__:
             raise AttributeError('Server instance has no attribute %r' % name)
         return self.__dict__[name]
@@ -69,14 +68,11 @@ class Server:
         if not os.path.isdir(self.path):
             os.makedirs(self.path)
 
-    def _parse_network(self, network):
-        network_split = network.split('/')
-        address = network_split[0]
-        cidr = int(network_split[1])
-        subnet = ('255.' * (cidr / 8)) + str(
-            int(('1' * (cidr % 8)).ljust(8, '0'), 2))
-        subnet += '.0' * (3 - subnet.count('.'))
-        return (address, subnet)
+    def get_cache_key(self, suffix=None):
+        key = 'server-%s' % self.id
+        if suffix:
+            key += '-%s' % suffix
+        return key
 
     def remove(self):
         logger.info('Removing server. %r' % {
@@ -90,6 +86,15 @@ class Server:
         call_buffer = _call_buffers.pop(self.id, None)
         if call_buffer:
             call_buffer.stop_waiter()
+
+    def _parse_network(self, network):
+        network_split = network.split('/')
+        address = network_split[0]
+        cidr = int(network_split[1])
+        subnet = ('255.' * (cidr / 8)) + str(
+            int(('1' * (cidr % 8)).ljust(8, '0'), 2))
+        subnet += '.0' * (3 - subnet.count('.'))
+        return (address, subnet)
 
     def _generate_scripts(self):
         logger.debug('Generating openvpn scripts. %r' % {
@@ -245,37 +250,6 @@ class Server:
                     })
                 raise
 
-    def push_output(self, output):
-        self.call_buffer.create_call('push_output', [output.rstrip('\n')])
-
-    def update_clients(self):
-        if not self.status:
-            return {}
-        clients = {}
-
-        if os.path.isfile(self.ovpn_status_path):
-            with open(self.ovpn_status_path, 'r') as status_file:
-                for line in status_file.readlines():
-                    if line[:11] != 'CLIENT_LIST':
-                        continue
-                    line_split = line.strip('\n').split(',')
-                    client_id = line_split[1]
-                    real_address = line_split[2]
-                    virt_address = line_split[3]
-                    bytes_received = line_split[4]
-                    bytes_sent = line_split[5]
-                    connected_since = line_split[7]
-                    clients[client_id] = {
-                        'real_address': real_address,
-                        'virt_address': virt_address,
-                        'bytes_received': bytes_received,
-                        'bytes_sent': bytes_sent,
-                        'connected_since': connected_since,
-                    }
-
-        self.clients = clients
-        return clients
-
     def _sub_thread(self, process):
         for message in cache_db.subscribe(self.get_cache_key()):
             try:
@@ -295,16 +269,11 @@ class Server:
             # Check interrupt every 0.1s check client count every 1s
             if i == 9:
                 i = 0
-                client_count = len(self.update_clients())
-                if client_count != cur_client_count:
-                    cur_client_count = client_count
-                    self.call_buffer.create_call('update_clients', [clients])
+                self.update_clients()
             else:
                 i += 1
             time.sleep(0.1)
         self._clear_iptable_rules()
-        self.status = False
-        cache_db.publish(self.get_cache_key(), 'stopped')
 
     def _run_thread(self):
         logger.debug('Starting ovpn process. %r' % {
@@ -320,12 +289,15 @@ class Server:
                 logger.exception('Failed to start ovpn process. %r' % {
                     'server_id': self.id,
                 })
+                self.publish('stopped')
                 return
-            threading.Thread(target=self._sub_thread,
-                args=(process,)).start()
-            threading.Thread(target=self._status_thread).start()
+            sub_thread = threading.Thread(target=self._sub_thread,
+                args=(process,))
+            sub_thread.start()
+            status_thread = threading.Thread(target=self._status_thread)
+            status_thread.start()
             self.status = True
-            cache_db.publish(self.get_cache_key(), 'started')
+            self.publish('started')
 
             while True:
                 line = process.stdout.readline()
@@ -336,17 +308,22 @@ class Server:
                         continue
                 self.push_output(line)
 
+            self._interrupt = True
+            status_thread.join()
+
+            self.status = False
+            self.publish('stopped')
+
             logger.debug('Ovpn process has ended. %r' % {
                 'server_id': self.id,
             })
-        finally:
+        except:
             self._interrupt = True
+            self.publish('stopped')
+            raise
 
-    def get_cache_key(self, suffix=None):
-        key = 'server-%s' % self.id
-        if suffix:
-            key += '-%s' % suffix
-        return key
+    def publish(self, message):
+        cache_db.publish(self.get_cache_key(), message)
 
     def start(self):
         if self.status:
@@ -413,6 +390,42 @@ class Server:
 
             if not stopped:
                 raise ValueError('Server thread failed to return stop event.')
+
+    def push_output(self, output):
+        self.call_buffer.create_call('push_output', [output.rstrip('\n')])
+
+    def update_clients(self):
+        if not self.status:
+            return {}
+        clients = {}
+
+        if os.path.isfile(self.ovpn_status_path):
+            with open(self.ovpn_status_path, 'r') as status_file:
+                for line in status_file.readlines():
+                    if line[:11] != 'CLIENT_LIST':
+                        continue
+                    line_split = line.strip('\n').split(',')
+                    client_id = line_split[1]
+                    real_address = line_split[2]
+                    virt_address = line_split[3]
+                    bytes_received = line_split[4]
+                    bytes_sent = line_split[5]
+                    connected_since = line_split[7]
+                    clients[client_id] = {
+                        'real_address': real_address,
+                        'virt_address': virt_address,
+                        'bytes_received': bytes_received,
+                        'bytes_sent': bytes_sent,
+                        'connected_since': connected_since,
+                    }
+
+        client_count = len(clients)
+        if client_count != self._cur_client_count:
+            self._cur_client_count = client_count
+            self.call_buffer.create_call('update_clients', [clients])
+
+        self.clients = clients
+        return clients
 
     @staticmethod
     def get_server(id):
