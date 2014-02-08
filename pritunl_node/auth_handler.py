@@ -8,5 +8,5 @@ class AuthHandler(tornado.web.RequestHandler):
 
 class AuthLocalHandler(tornado.web.RequestHandler):
     def prepare(self):
-        if self.request.remote_ip not in ['127.0.0.1', '::1']:
+        if self.request.remote_ip not in ('127.0.0.1', '::1'):
             raise tornado.web.HTTPError(401)
