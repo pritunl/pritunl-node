@@ -152,8 +152,8 @@ class Server:
             })
             raise
 
-    def _generate_iptable_rules(self):
-        iptable_rules = []
+    def _generate_iptables_rules(self):
+        rules = []
 
         try:
             routes_output = utils.check_output(['route', '-n'],
@@ -172,14 +172,17 @@ class Server:
             routes[line_split[0]] = line_split[7]
 
         if '0.0.0.0' not in routes:
-            logger.error('Failed to find default network interface. %r' % {
+            raise IptablesError('Failed to find default network interface', {
                 'server_id': self.id,
             })
-            raise ValueError('Failed to find default network interface')
         default_interface = routes['0.0.0.0']
 
+        rules.append(['INPUT', '-i', self.interface, '-j', 'ACCEPT'])
+        rules.append(['FORWARD', '-i', self.interface, '-j', 'ACCEPT'])
+
+        interfaces = set()
         for network_address in self.local_networks or ['0.0.0.0/0']:
-            args = []
+            args = ['POSTROUTING', '-t', 'nat']
             network = self._parse_network(network_address)[0]
 
             if network not in routes:
@@ -190,65 +193,69 @@ class Server:
                 interface = default_interface
             else:
                 interface = routes[network]
+            interfaces.add(interface)
 
             if network != '0.0.0.0':
                 args += ['-d', network_address]
 
             args += ['-s', self.network, '-o', interface, '-j', 'MASQUERADE']
-            iptable_rules.append(args)
+            rules.append(args)
 
-        return iptable_rules
+        for interface in interfaces:
+            rules.append(['FORWARD', '-i', interface, '-o', self.interface,
+                '-m', 'state', '--state', 'ESTABLISHED,RELATED',
+                '-j', 'ACCEPT'])
+            rules.append(['FORWARD', '-i', self.interface, '-o', interface,
+                '-m', 'state', '--state', 'ESTABLISHED,RELATED',
+                '-j', 'ACCEPT'])
 
-    def _exists_iptable_rules(self):
-        logger.debug('Checking for iptable rules. %r' % {
+        return rules
+
+    def _exists_iptables_rules(self, rule):
+        logger.debug('Checking for iptables rule. %r' % {
             'server_id': self.id,
+            'rule': rule,
         })
-        for iptable_rule in self._generate_iptable_rules():
-            try:
-                subprocess.check_call(['iptables', '-t', 'nat', '-C',
-                    'POSTROUTING'] + iptable_rule,
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            except subprocess.CalledProcessError:
-                return False
+        try:
+            subprocess.check_call(['iptables', '-C'] + rule,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        except subprocess.CalledProcessError:
+            return False
         return True
 
-    def _set_iptable_rules(self):
-        if self._exists_iptable_rules():
-            return
-
-        logger.debug('Setting iptable rules. %r' % {
+    def _set_iptables_rules(self):
+        logger.debug('Setting iptables rules. %r' % {
             'server_id': self.id,
         })
-        for iptable_rule in self._generate_iptable_rules():
-            try:
-                subprocess.check_call(['iptables', '-t', 'nat', '-A',
-                    'POSTROUTING'] + iptable_rule,
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            except subprocess.CalledProcessError:
-                logger.exception('Failed to apply iptables ' + \
-                    'routing rules. %r' % {
-                        'server_id': self.id,
-                    })
-                raise
+        for rule in self._generate_iptables_rules():
+            if not self._exists_iptables_rules(rule):
+                try:
+                    subprocess.check_call(['iptables', '-A'] + rule,
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                except subprocess.CalledProcessError:
+                    logger.exception('Failed to apply iptables ' + \
+                        'routing rule. %r' % {
+                            'server_id': self.id,
+                            'rule': rule,
+                        })
+                    raise
 
-    def _clear_iptable_rules(self):
-        if not self._exists_iptable_rules():
-            return
-        logger.debug('Clearing iptable rules. %r' % {
+    def _clear_iptables_rules(self):
+        logger.debug('Clearing iptables rules. %r' % {
             'server_id': self.id,
         })
-
-        for iptable_rule in self._generate_iptable_rules():
-            try:
-                subprocess.check_call(['iptables', '-t', 'nat', '-D',
-                    'POSTROUTING'] + iptable_rule,
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            except subprocess.CalledProcessError:
-                logger.exception('Failed to clear iptables ' + \
-                    'routing rules. %r' % {
-                        'server_id': self.id,
-                    })
-                raise
+        for rule in self._generate_iptables_rules():
+            if self._exists_iptables_rules(rule):
+                try:
+                    subprocess.check_call(['iptables', '-D'] + rule,
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                except subprocess.CalledProcessError:
+                    logger.exception('Failed to clear iptables ' + \
+                        'routing rule. %r' % {
+                            'server_id': self.id,
+                            'rule': rule,
+                        })
+                    raise
 
     def _sub_thread(self, process):
         for message in cache_db.subscribe(self.get_cache_key()):
@@ -273,7 +280,7 @@ class Server:
             else:
                 i += 1
             time.sleep(0.1)
-        self._clear_iptable_rules()
+        self._clear_iptables_rules()
 
     def _run_thread(self):
         logger.debug('Starting ovpn process. %r' % {
@@ -333,7 +340,7 @@ class Server:
         })
         self._generate_ovpn_conf()
         self._enable_ip_forwarding()
-        self._set_iptable_rules()
+        self._set_iptables_rules()
 
         threading.Thread(target=self._run_thread).start()
 
