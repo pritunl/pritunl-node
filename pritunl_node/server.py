@@ -16,11 +16,12 @@ logger = logging.getLogger(APP_NAME)
 _call_buffers = {}
 
 class Server:
-    def __init__(self, id=None, network=None, local_networks=None,
-             ovpn_conf=None, server_ver=None):
+    def __init__(self, id=None, interface=None, network=None,
+            local_networks=None, ovpn_conf=None, server_ver=None):
         self._cur_client_count = 0
 
         self.id = id
+        self.interface = interface
         self.network = network
         self.local_networks = local_networks
         self.ovpn_conf = ovpn_conf

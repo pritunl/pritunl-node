@@ -12,6 +12,7 @@ logger = logging.getLogger(APP_NAME)
 class ServerHandler(AuthHandler):
     def post(self, server_id):
         data = tornado.escape.json_decode(self.request.body)
+        interface = data['interface']
         network = data['network']
         local_networks = data['local_networks']
         ovpn_conf = data['ovpn_conf']
@@ -21,6 +22,7 @@ class ServerHandler(AuthHandler):
 
         server = Server(
             id=server_id,
+            interface=interface,
             network=network,
             local_networks=local_networks,
             ovpn_conf=ovpn_conf,
