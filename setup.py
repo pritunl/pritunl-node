@@ -57,7 +57,7 @@ setup(
     author_email='zach.huff.386@gmail.com',
     url='https://github.com/pritunl/pritunl-node',
     download_url='https://github.com/pritunl/pritunl-node/' + \
-        'archive/%s.tar.gz' % pritunl.__version__,
+        'archive/%s.tar.gz' % pritunl_node.__version__,
     keywords='pritunl, openvpn, vpn, management, server',
     packages=['pritunl_node'],
     license=open('LICENSE').read(),
