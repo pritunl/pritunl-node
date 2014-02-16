@@ -34,13 +34,14 @@ class Cache:
         self._set_queue = Queue.Queue()
         self._data = collections.defaultdict(
             lambda: {'ttl': None, 'val': None})
+        self._timers = {}
         self._channels = collections.defaultdict(
             lambda: {'subs': set(), 'msgs': collections.deque(maxlen=10)})
         self._commit_log = []
         self._locks = collections.defaultdict(lambda: threading.Lock())
 
     def _put_queue(self):
-        if self._data:
+        if self._path:
             self._set_queue.put('set')
 
     def _export_thread(self):
@@ -66,10 +67,14 @@ class Cache:
         if key not in self._data:
             return
         ttl = self._data[key]['ttl']
-        if ttl and int(time.time()) > ttl:
+        if ttl and int(time.time() * 1000) > ttl:
             self.remove(key)
             return True
         return False
+
+    def _check_ttl_timer(self, key):
+        self._timers.pop(key, None)
+        self._check_ttl(key)
 
     def setup_persist(self, path):
         self._path = path
@@ -86,17 +91,23 @@ class Cache:
         self._put_queue()
 
     def increment(self, key):
-        try:
-            self._data[key]['val'] = str(int(self.get(key)) + 1)
-        except (TypeError, ValueError):
+        if key not in self._data:
             self._data[key]['val'] = '1'
+        else:
+            try:
+                self._data[key]['val'] = str(int(self.get(key)) + 1)
+            except (TypeError, ValueError):
+                self._data[key]['val'] = '1'
         self._put_queue()
 
     def decrement(self, key):
-        try:
-            self._data[key]['val'] = str(int(self.get(key)) - 1)
-        except (TypeError, ValueError):
+        if key not in self._data:
             self._data[key]['val'] = '0'
+        else:
+            try:
+                self._data[key]['val'] = str(int(self.get(key)) - 1)
+            except (TypeError, ValueError):
+                self._data[key]['val'] = '0'
         self._put_queue()
 
     def remove(self, key):
@@ -115,16 +126,27 @@ class Cache:
         return False
 
     def expire(self, key, ttl):
-        timeout = int(time.time()) + ttl
-        self._data[key]['ttl'] = timeout
+        ttl_time = int(time.time() * 1000) + (ttl * 1000)
+
+        cur_timer = self._timers.pop(key, None)
+        timer = threading.Timer(ttl + 0.01, self._check_ttl_timer, (key,))
+        self._timers[key] = timer
+        if cur_timer:
+            cur_timer.cancel()
+        timer.start()
+
+        self._data[key]['ttl'] = ttl_time
         self._put_queue()
 
     def set_add(self, key, element):
         self._validate(element)
-        try:
-            self._data[key]['val'].add(element)
-        except AttributeError:
+        if key not in self._data:
             self._data[key]['val'] = {element}
+        else:
+            try:
+                self._data[key]['val'].add(element)
+            except AttributeError:
+                self._data[key]['val'] = {element}
         self._put_queue()
 
     def set_remove(self, key, element):
@@ -133,6 +155,14 @@ class Cache:
         except (KeyError, AttributeError):
             pass
         self._put_queue()
+
+    def set_exists(self, key, element):
+        if self._check_ttl(key) is False:
+            try:
+                return element in self._data[key]['val']
+            except (TypeError, AttributeError):
+                pass
+        return False
 
     def set_elements(self, key):
         if self._check_ttl(key) is False:
@@ -144,18 +174,24 @@ class Cache:
 
     def list_lpush(self, key, value):
         self._validate(value)
-        try:
-            self._data[key]['val'].appendleft(value)
-        except AttributeError:
+        if key not in self._data:
             self._data[key]['val'] = collections.deque([value])
+        else:
+            try:
+                self._data[key]['val'].appendleft(value)
+            except AttributeError:
+                self._data[key]['val'] = collections.deque([value])
         self._put_queue()
 
     def list_rpush(self, key, value):
         self._validate(value)
-        try:
-            self._data[key]['val'].append(value)
-        except AttributeError:
+        if key not in self._data:
             self._data[key]['val'] = collections.deque([value])
+        else:
+            try:
+                self._data[key]['val'].append(value)
+            except AttributeError:
+                self._data[key]['val'] = collections.deque([value])
         self._put_queue()
 
     def list_lpop(self, key):
@@ -247,10 +283,13 @@ class Cache:
 
     def dict_set(self, key, field, value):
         self._validate(value)
-        try:
-            self._data[key]['val'][field] = value
-        except TypeError:
+        if key not in self._data:
             self._data[key]['val'] = {field: value}
+        else:
+            try:
+                self._data[key]['val'][field] = value
+            except TypeError:
+                self._data[key]['val'] = {field: value}
         self._put_queue()
 
     def dict_remove(self, key, field):
@@ -335,20 +374,26 @@ class Cache:
             return
         temp_path = self._path + '.tmp'
         try:
-            with open(temp_path, 'w') as db_file:
-                data = []
+            data = self._data.copy()
+            timers = self._timers.keys()
+            commit_log = copy.copy(self._commit_log)
 
-                for key in self._data:
-                    key_ttl = self._data[key]['ttl']
-                    key_val = self._data[key]['val']
+            with open(temp_path, 'w') as db_file:
+                export_data = []
+
+                for key in data:
+                    key_ttl = data[key]['ttl']
+                    key_val = data[key]['val']
                     key_type = type(key_val).__name__
                     if key_type == 'set' or key_type == 'deque':
                         key_val = list(key_val)
-                    data.append((key, key_type, key_ttl, key_val))
+                    export_data.append((key, key_type, key_ttl, key_val))
 
                 db_file.write(json.dumps({
-                    'data': data,
-                    'commit_log': self._commit_log,
+                    'ver': 1,
+                    'data': export_data,
+                    'timers': timers,
+                    'commit_log': commit_log,
                 }))
             os.rename(temp_path, self._path)
         except:
@@ -378,8 +423,26 @@ class Cache:
                     self._data[key]['ttl'] = key_ttl
                     self._data[key]['val'] = key_val
 
-                for tran in import_data['commit_log']:
-                    self._apply_trans(tran)
+                if 'timers' in import_data:
+                    for key in import_data['timers']:
+                        if key not in self._data:
+                            continue
+                        ttl = self._data[key]['ttl']
+                        if not ttl:
+                            continue
+                        ttl -= int(time.time() * 1000)
+                        ttl = ttl / 1000.0
+                        if ttl >= 0:
+                            timer = threading.Timer(ttl + 0.01,
+                                self._check_ttl_timer, (key,))
+                            self._timers[key] = timer
+                            timer.start()
+                        else:
+                            self._check_ttl(key)
+
+                if 'commit_log' in import_data:
+                    for tran in import_data['commit_log']:
+                        self._apply_trans(tran)
 
 class CacheTransaction:
     def __init__(self, cache):
