@@ -63,8 +63,7 @@ setup(
     license=open('LICENSE').read(),
     zip_safe=False,
     install_requires=[
-        'flask>=0.6',
-        'cherrypy>=3.2.0',
+        'tornado>=2.1.0',
     ],
     data_files=data_files,
     entry_points={
