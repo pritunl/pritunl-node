@@ -104,6 +104,9 @@ class AppServer(Config):
         self._setup_handlers()
 
     def _run_server(self):
+        from server import Server
+        for server in Server.get_servers():
+            server.remove()
         if self.ssl:
             self._setup_server_cert()
         try:
@@ -113,7 +116,6 @@ class AppServer(Config):
             })
             tornado.ioloop.IOLoop.instance().start()
         finally:
-            from server import Server
             for server in Server.get_servers():
                 server.remove()
 
