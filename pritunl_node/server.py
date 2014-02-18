@@ -318,6 +318,7 @@ class Server:
 
             self._interrupt = True
             status_thread.join()
+            time.sleep(0.1)
 
             self.status = False
             self.publish('stopped')
