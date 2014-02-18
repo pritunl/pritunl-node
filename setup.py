@@ -59,7 +59,7 @@ setup(
     download_url='https://github.com/pritunl/pritunl-node/' + \
         'archive/%s.tar.gz' % pritunl_node.__version__,
     keywords='pritunl, openvpn, vpn, management, server',
-    packages=['pritunl_node'],
+    packages=['pritunl_node', 'pritunl_node.handlers'],
     license=open('LICENSE').read(),
     zip_safe=False,
     install_requires=[
