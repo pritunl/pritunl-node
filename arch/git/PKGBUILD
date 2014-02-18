@@ -7,7 +7,7 @@ pkgrel=1
 pkgdesc="Pritunl openvpn server node (git version)"
 arch=("any")
 license=("AGPL3")
-url="https://github.com/${_pkgname}/${_pkgname}"
+url="https://github.com/pritunl/${_pkgname}"
 depends=(
     "python"
     "python2"
