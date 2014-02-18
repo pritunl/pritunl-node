@@ -16,9 +16,7 @@ class ServerHandler(AuthHandler):
         network = data['network']
         local_networks = data['local_networks']
         ovpn_conf = data['ovpn_conf']
-        server_ver = 0
-        if 'server_ver' in data:
-            server_ver = data['server_ver']
+        server_ver = data.get('server_ver', 0)
 
         server = Server(
             id=server_id,
