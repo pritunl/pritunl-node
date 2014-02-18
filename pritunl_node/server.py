@@ -364,7 +364,7 @@ class Server:
         })
 
         stopped = False
-        cache_db.publish(self.get_cache_key(), 'stop')
+        self.publish('stop')
         for message in cache_db.subscribe(self.get_cache_key(),
                 SUB_RESPONSE_TIMEOUT):
             if message == 'stopped':
@@ -381,23 +381,14 @@ class Server:
         })
 
         stopped = False
-        cache_db.publish(self.get_cache_key(), 'stop')
-        for message in cache_db.subscribe(self.get_cache_key(), 2):
+        self.publish('force_stop')
+        for message in cache_db.subscribe(self.get_cache_key(),
+                SUB_RESPONSE_TIMEOUT):
             if message == 'stopped':
                 stopped = True
                 break
-
         if not stopped:
-            stopped = False
-            cache_db.publish(self.get_cache_key(), 'force_stop')
-            for message in cache_db.subscribe(self.get_cache_key(),
-                    SUB_RESPONSE_TIMEOUT):
-                if message == 'stopped':
-                    stopped = True
-                    break
-
-            if not stopped:
-                raise ValueError('Server thread failed to return stop event.')
+            raise ValueError('Server thread failed to return stop event.')
 
     def push_output(self, output):
         self.call_buffer.create_call('push_output', [output.rstrip('\n')])
