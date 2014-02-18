@@ -34,7 +34,10 @@ class ServerHandler(AuthHandler):
         })
 
     def delete(self, server_id):
-        server = Server(id=server_id)
+        server = Server.get_server(id=server_id)
+        if not server:
+            self.send_error(404)
+            return
         server.remove()
 
         self.write({
@@ -51,7 +54,10 @@ class ServerTlsVerifyHandler(AuthLocalHandler):
         data = tornado.escape.json_decode(self.request.body)
         org_id = data['org_id']
         user_id = data['user_id']
-        server = Server(id=server_id)
+        server = Server.get_server(id=server_id)
+        if not server:
+            self.send_error(404)
+            return
         self.call_buffer = server.call_buffer
 
         self.timeout = tornado.ioloop.IOLoop.current().add_timeout(
@@ -88,7 +94,10 @@ class ServerOtpVerifyHandler(AuthLocalHandler):
         org_id = data['org_id']
         user_id = data['user_id']
         otp_code = data['otp_code']
-        server = Server(id=server_id)
+        server = Server.get_server(id=server_id)
+        if not server:
+            self.send_error(404)
+            return
         self.call_buffer = server.call_buffer
 
         self.timeout = tornado.ioloop.IOLoop.current().add_timeout(
@@ -124,7 +133,10 @@ class ServerClientConnectHandler(AuthLocalHandler):
         data = tornado.escape.json_decode(self.request.body)
         org_id = data['org_id']
         user_id = data['user_id']
-        server = Server(id=server_id)
+        server = Server.get_server(id=server_id)
+        if not server:
+            self.send_error(404)
+            return
         self.call_buffer = server.call_buffer
 
         self.timeout = tornado.ioloop.IOLoop.current().add_timeout(
@@ -160,7 +172,10 @@ class ServerClientDisconnectHandler(AuthLocalHandler):
         data = tornado.escape.json_decode(self.request.body)
         org_id = data['org_id']
         user_id = data['user_id']
-        server = Server(id=server_id)
+        server = Server.get_server(id=server_id)
+        if not server:
+            self.send_error(404)
+            return
         self.call_buffer = server.call_buffer
 
         self.timeout = tornado.ioloop.IOLoop.current().add_timeout(
@@ -191,7 +206,10 @@ class ServerComHandler(AuthHandler):
 
     @tornado.web.asynchronous
     def put(self, server_id):
-        server = Server(id=server_id)
+        server = Server.get_server(id=server_id)
+        if not server:
+            self.send_error(404)
+            return
         self.call_buffer = server.call_buffer
 
         if not self.call_buffer:
