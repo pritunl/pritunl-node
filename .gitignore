@@ -9,4 +9,5 @@ Thumbs.db
 *.pyc
 *.egg
 *.egg-info
+/.vagrant
 /var
