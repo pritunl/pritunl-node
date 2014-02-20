@@ -60,7 +60,7 @@ class Server:
         return self.__dict__[name]
 
     def initialize(self):
-        logger.info('Initialize server. %r' % {
+        logger.debug('Initialize server. %r' % {
             'server_id': self.id,
         })
         if self.status:
@@ -76,7 +76,7 @@ class Server:
         return key
 
     def remove(self):
-        logger.info('Removing server. %r' % {
+        logger.debug('Removing server. %r' % {
             'server_id': self.id,
         })
 
