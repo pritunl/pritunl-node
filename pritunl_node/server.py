@@ -413,9 +413,9 @@ class Server:
                     clients[client_id] = {
                         'real_address': real_address,
                         'virt_address': virt_address,
-                        'bytes_received': bytes_received,
-                        'bytes_sent': bytes_sent,
-                        'connected_since': connected_since,
+                        'bytes_received': int(bytes_received),
+                        'bytes_sent': int(bytes_sent),
+                        'connected_since': int(connected_since),
                     }
 
         client_count = len(clients)
