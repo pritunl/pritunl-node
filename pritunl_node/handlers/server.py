@@ -1,6 +1,7 @@
 from pritunl_node.constants import *
 from pritunl_node.server import Server
-from pritunl_node.auth_handler import AuthHandler, AuthLocalHandler
+from pritunl_node.auth_handler import AuthHandler, AuthLocalHandler, \
+    WebSocketAuthHandler
 from pritunl_node import app_server
 import tornado.ioloop
 import tornado.web
@@ -200,47 +201,42 @@ class ServerClientDisconnectHandler(AuthLocalHandler):
 app_server.app.add_handlers('.*', [(r'/server/([a-z0-9]+)/client_disconnect',
     ServerClientDisconnectHandler)])
 
-class ServerComHandler(AuthHandler):
+class ServerComHandler(WebSocketAuthHandler):
     call_buffer = None
-    timeout = None
+    server = None
 
-    @tornado.web.asynchronous
-    def put(self, server_id):
-        server = Server.get_server(id=server_id)
-        if not server:
-            self.send_error(404)
+    def open(self, server_id):
+        if not self.authenticate():
+            # TODO Send error
+            self.close()
             return
-        self.call_buffer = server.call_buffer
+
+        self.server = Server.get_server(id=server_id)
+        if not self.server:
+            self.close()
+            return
+        self.call_buffer = self.server.call_buffer
 
         if not self.call_buffer:
-            self.send_error(410)
+            self.close()
             return
 
-        for call in tornado.escape.json_decode(self.request.body):
-            self.call_buffer.return_call(call['id'], call['response'])
-
-        self.timeout = tornado.ioloop.IOLoop.current().add_timeout(
-            time.time() + 5, self.on_new_calls)
         self.call_buffer.wait_for_calls(self.on_new_calls)
 
-    def write(self, chunk):
-        if isinstance(chunk, list):
-            self.set_header('Content-Type', 'application/json; charset=UTF-8')
-            chunk = tornado.escape.json_encode(chunk)
-        super(ServerComHandler, self).write(chunk)
+    def on_message(self, message):
+        for call in tornado.escape.json_decode(message):
+            self.call_buffer.return_call(call['id'], call['response'])
 
     def on_new_calls(self, calls=[]):
-        if self.request.connection.stream.closed():
-            return
         if calls is None:
-            self.send_error(410)
+            self.close()
         else:
-            self.finish(calls)
+            self.write_message(tornado.escape.json_encode(calls))
 
-    def on_finish(self):
+    def on_close(self):
         if self.call_buffer:
             self.call_buffer.cancel_waiter()
-        if self.timeout:
-            tornado.ioloop.IOLoop.current().remove_timeout(self.timeout)
+        if self.server:
+            self.server.remove()
 app_server.app.add_handlers('.*', [(r'/server/([a-z0-9]+)/com',
     ServerComHandler)])
