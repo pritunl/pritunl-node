@@ -207,7 +207,6 @@ class ServerComHandler(WebSocketAuthHandler):
 
     def open(self, server_id):
         if not self.authenticate():
-            # TODO Send error
             self.close()
             return
 
