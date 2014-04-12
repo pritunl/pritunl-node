@@ -1,4 +1,5 @@
 from constants import *
+from exceptions import *
 from call_buffer import CallBuffer
 from cache import cache_db
 from pritunl_node import app_server
@@ -29,7 +30,6 @@ class Server:
 
         self.path = os.path.join(app_server.data_path, self.id)
         self.ovpn_conf_path = os.path.join(self.path, OVPN_CONF_NAME)
-        self.ifc_pool_path = os.path.join(self.path, IFC_POOL_NAME)
         self.tls_verify_path = os.path.join(self.path, TLS_VERIFY_NAME)
         self.user_pass_verify_path = os.path.join(
             self.path, USER_PASS_VERIFY_NAME)
@@ -127,7 +127,6 @@ class Server:
         if self.server_ver == 0:
             server_conf = ovpn_conf % (
                 self.tls_verify_path,
-                self.ifc_pool_path,
                 self.ovpn_status_path,
             )
         else:
@@ -135,7 +134,6 @@ class Server:
                 self.tls_verify_path,
                 self.client_connect_path,
                 self.client_disconnect_path,
-                self.ifc_pool_path,
                 self.ovpn_status_path,
             )
 
@@ -157,7 +155,7 @@ class Server:
         rules = []
 
         try:
-            routes_output = utils.check_output(['route', '-n'],
+            routes_output = subprocess.check_output(['route', '-n'],
                 stderr=subprocess.PIPE)
         except subprocess.CalledProcessError:
             logger.exception('Failed to get IP routes. %r' % {
