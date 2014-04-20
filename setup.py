@@ -53,8 +53,8 @@ setup(
     version=pritunl_node.__version__,
     description='Pritunl openvpn server node',
     long_description=open('README.rst').read(),
-    author='Zachary Huff',
-    author_email='zach.huff.386@gmail.com',
+    author='Pritunl',
+    author_email='contact@pritunl.com',
     url='https://github.com/pritunl/pritunl-node',
     download_url='https://github.com/pritunl/pritunl-node/' + \
         'archive/%s.tar.gz' % pritunl_node.__version__,
