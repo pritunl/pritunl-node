@@ -138,6 +138,7 @@ try:
 
     # Get org and common_name from environ
     tls_env = os.environ.get('tls_id_0')
+    remote_ip = os.environ.get('untrusted_ip')
     if not tls_env:
         log_write('[FAILED] Missing organization or user id from environ')
         raise AttributeError('Missing organization or user id from environ')
@@ -174,6 +175,7 @@ try:
             'org_id': org,
             'user_id': common_name,
             'otp_code': password,
+            'remote_ip': remote_ip,
         }).encode('utf-8'))
         response = json.loads(response.read().decode('utf-8'))
 

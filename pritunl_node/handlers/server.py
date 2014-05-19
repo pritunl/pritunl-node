@@ -95,6 +95,7 @@ class ServerOtpVerifyHandler(AuthLocalHandler):
         org_id = data['org_id']
         user_id = data['user_id']
         otp_code = data['otp_code']
+        remote_ip = data.get('remote_ip')
         server = Server.get_server(id=server_id)
         if not server:
             self.send_error(404)
@@ -105,7 +106,7 @@ class ServerOtpVerifyHandler(AuthLocalHandler):
             time.time() + CALL_RESPONSE_TIMEOUT, self.on_timeout)
 
         self.call_id = self.call_buffer.create_call('otp_verify',
-            [org_id, user_id, otp_code], self.on_response)
+            [org_id, user_id, otp_code, remote_ip], self.on_response)
 
     def on_timeout(self):
         self.send_error(504)
